@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Malgudi Tiffins — Digital Menu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+  :root{
+    --bg:#F6F4EE;
+    --surface:#FFFFFF;
+    --border:#E7E2D6;
+    --border-soft:#F0EDE3;
+    --text:#1C1B18;
+    --text-muted:#79766D;
+    --pine:#1F4B3F;
+    --pine-dark:#163A31;
+    --pine-soft:#E9F1EE;
+    --gold:#C9922B;
+    --gold-soft:#FBF1DD;
+    --danger:#B3261E;
+    --danger-soft:#FBEDEC;
+    --success:#1F4B3F;
+    --success-soft:#E9F1EE;
+    --warn:#C9922B;
+    --warn-soft:#FBF1DD;
+    --accent:var(--pine);
+    --accent-soft:var(--pine-soft);
+    --font:'Inter', sans-serif;
+    --font-display:'Instrument Serif', serif;
+    --shadow-sm:0 1px 2px rgba(28,27,24,0.04);
+    --shadow-md:0 4px 16px rgba(28,27,24,0.06);
+    --shadow-lg:0 12px 32px rgba(22,58,49,0.10);
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html{overscroll-behavior-y:none;}
+  body{ font-family:var(--font); background:var(--bg); color:var(--text); min-height:100vh; }
+  a{color:inherit;}
+  button, input, textarea{ font-family:var(--font); }
+  input, textarea{ font-size:16px; }
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    background:linear-gradient(135deg, var(--pine) 0%, var(--pine-dark) 100%);
+    background-image:
+      radial-gradient(circle at 92% -20%, rgba(201,146,43,0.25) 0%, transparent 45%),
+      linear-gradient(135deg, var(--pine) 0%, var(--pine-dark) 100%);
+    border-bottom:none;
+    box-shadow:var(--shadow-md);
+    color:#FBF8F1;
+    padding:14px 20px;
+    padding-top:calc(14px + env(safe-area-inset-top));
+    display:flex; justify-content:space-between; align-items:center;
+    position:sticky; top:0; z-index:50;
+  }
+  .brand{ font-family:var(--font-display); font-weight:400; font-size:1.55rem; letter-spacing:0.01em; }
+  .brand small{
+    display:block; font-family:var(--font); font-size:0.62rem; font-weight:600;
+    letter-spacing:1.6px; text-transform:uppercase; color:var(--gold); margin-top:1px;
+  }
+  .view-toggle{ display:flex; gap:6px; }
+  .view-toggle button{
+    background:rgba(255,255,255,0.08); border:1px solid rgba(251,248,241,0.25); color:#FBF8F1;
+    padding:8px 14px; min-height:36px; border-radius:8px; font-size:0.78rem; font-weight:600; cursor:pointer;
+    transition:all .15s ease;
+  }
+  .view-toggle button.active{ background:var(--gold); border-color:var(--gold); color:var(--pine-dark); }
+
+  .toast-banner{
+    display:none; align-items:center; gap:10px;
+    background:var(--pine); color:#fff;
+    padding:12px 20px; font-size:0.85rem; font-weight:600;
+    position:sticky; top:65px; z-index:45; box-shadow:var(--shadow-md);
+  }
+  .toast-banner.show{ display:flex; animation: slideDown .25s ease; }
+  @keyframes slideDown{ from{transform:translateY(-100%);} to{transform:translateY(0);} }
+
+  /* ---------- Customer: header ---------- */
+  .menu-header{ padding:32px 20px 18px; text-align:center; }
+  .table-tag{
+    display:inline-block; background:var(--gold-soft); color:var(--gold);
+    font-size:0.72rem; font-weight:700; padding:6px 14px; border-radius:20px; margin-bottom:14px;
+    letter-spacing:0.4px; text-transform:uppercase;
+  }
+  .menu-header h1{ font-family:var(--font-display); font-size:2.4rem; font-weight:400; color:var(--text); line-height:1.1; }
+  .menu-header p{ color:var(--text-muted); font-size:0.85rem; margin-top:6px; }
+
+  /* ---------- Search + filter ---------- */
+  .search-bar{
+    display:flex; gap:8px; padding:0 20px 14px; max-width:640px; margin:0 auto; align-items:center;
+  }
+  .search-bar input{
+    flex:1; border:1px solid var(--border); background:var(--surface);
+    padding:11px 14px; border-radius:10px; font-size:0.9rem;
+  }
+  .search-bar input:focus-visible{ outline:2px solid var(--pine); outline-offset:1px; }
+  .veg-toggle{
+    display:flex; align-items:center; gap:6px; font-size:0.78rem; font-weight:600; color:var(--text-muted);
+    border:1px solid var(--border); padding:10px 12px; border-radius:10px; white-space:nowrap; cursor:pointer; background:var(--surface);
+  }
+  .veg-toggle input{ width:16px; height:16px; }
+
+  /* ---------- Category tabs ---------- */
+  .cat-tabs{
+    display:flex; gap:8px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+    padding:0 20px 16px; max-width:640px; margin:0 auto;
+    scrollbar-width:none;
+  }
+  .cat-tabs::-webkit-scrollbar{ display:none; }
+  .cat-tabs button{
+    flex:0 0 auto; background:var(--surface); border:1px solid var(--border); color:var(--text);
+    padding:9px 16px; min-height:38px; border-radius:20px; font-size:0.8rem; font-weight:600; cursor:pointer;
+  }
+  .cat-tabs button.active{ background:var(--pine); border-color:var(--pine); color:#fff; }
+  .search-results-label{
+    padding:0 20px 10px; max-width:640px; margin:0 auto; font-size:0.8rem; color:var(--text-muted); font-weight:600;
+  }
+
+  /* ---------- Menu list ---------- */
+  .menu-list{ padding:4px 20px 150px; max-width:640px; margin:0 auto; }
+  .item-card{
+    display:flex; justify-content:space-between; gap:14px;
+    padding:16px 14px; margin-bottom:10px; border-radius:12px;
+    background:var(--surface); border:1px solid var(--border-soft);
+    border-left:3px solid var(--success);
+    box-shadow:var(--shadow-sm);
+    transition:box-shadow .2s ease, transform .2s ease;
+  }
+  .item-card:not(.unavailable):hover{ box-shadow:var(--shadow-md); transform:translateY(-1px); }
+  .item-card.unavailable{ opacity:0.5; border-left-color:var(--border); }
+  .item-card.non-veg{ border-left-color:var(--danger); }
+  .item-info h3{ font-size:1.02rem; font-weight:700; margin-bottom:4px; line-height:1.3; }
+  .veg-dot{ display:inline-block; width:10px; height:10px; border:1.5px solid var(--success); border-radius:2px; position:relative; margin-right:6px; }
+  .veg-dot::after{ content:''; position:absolute; inset:2px; background:var(--success); border-radius:50%; }
+  .veg-dot.non{ border-color:var(--danger); }
+  .veg-dot.non::after{ background:var(--danger); }
+  .item-info p.desc{ font-size:0.8rem; color:var(--text-muted); max-width:320px; }
+  .item-info .price{ font-weight:700; color:var(--text); margin-top:6px; font-size:0.95rem; }
+  .item-action{ display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+  .stepper{ display:flex; align-items:center; border:1px solid var(--pine); border-radius:20px; overflow:hidden; }
+  .stepper button{ background:var(--pine-soft); color:var(--pine); border:none; width:36px; height:36px; font-size:1.1rem; cursor:pointer; }
+  .stepper span{ width:28px; text-align:center; font-weight:700; font-size:0.9rem; }
+  .add-btn{
+    background:var(--pine); color:#fff; border:none; padding:10px 18px; min-height:38px;
+    border-radius:20px; font-weight:600; font-size:0.8rem; cursor:pointer; box-shadow:var(--shadow-sm);
+  }
+  .add-btn:focus-visible, .stepper button:focus-visible, .cat-tabs button:focus-visible,
+  .view-toggle button:focus-visible, input:focus-visible, .login-btn:focus-visible{
+    outline:2px solid var(--pine); outline-offset:2px;
+  }
+  .sold-out-tag{ font-size:0.7rem; font-weight:700; color:var(--danger); text-transform:uppercase; letter-spacing:0.5px; }
+  .no-results{ text-align:center; padding:50px 20px; color:var(--text-muted); font-size:0.9rem; }
+
+  /* ---------- Cart bar ---------- */
+  .cart-bar{
+    position:fixed; bottom:0; left:0; right:0;
+    background:linear-gradient(135deg, var(--pine) 0%, var(--pine-dark) 100%);
+    color:#fff; padding:14px 20px;
+    padding-bottom:calc(14px + env(safe-area-inset-bottom));
+    display:none; justify-content:space-between; align-items:center;
+    max-width:640px; margin:0 auto; border-radius:16px 16px 0 0;
+    box-shadow:var(--shadow-lg);
+  }
+  .cart-bar.show{ display:flex; }
+  .cart-bar .info{ font-size:0.85rem; font-weight:600; }
+  .cart-bar button{
+    background:var(--gold); color:var(--pine-dark); border:none; padding:11px 20px; min-height:40px;
+    border-radius:20px; font-weight:700; cursor:pointer; font-size:0.85rem;
+  }
+
+  /* ---------- Order tracker (customer, live) ---------- */
+  .tracker-screen{
+    display:none; flex-direction:column; align-items:center;
+    padding:50px 20px; max-width:480px; margin:0 auto; text-align:center;
+  }
+  .tracker-screen.show{ display:flex; }
+  .tracker-screen h2{ font-family:var(--font-display); font-size:1.9rem; font-weight:400; margin-bottom:6px; }
+  .tracker-screen .sub{ color:var(--text-muted); font-size:0.85rem; margin-bottom:32px; }
+  .stage-track{ display:flex; align-items:flex-start; width:100%; margin-bottom:28px; }
+  .stage{ flex:1; display:flex; flex-direction:column; align-items:center; position:relative; }
+  .stage-dot{
+    width:34px; height:34px; border-radius:50%; background:var(--surface); color:var(--text-muted);
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.85rem;
+    border:2px solid var(--border); z-index:2; transition:all .3s ease; box-shadow:var(--shadow-sm);
+  }
+  .stage.done .stage-dot{ background:var(--pine); border-color:var(--pine); color:#fff; }
+  .stage.current .stage-dot{ background:var(--gold); border-color:var(--gold); color:var(--pine-dark); box-shadow:0 0 0 6px var(--gold-soft); }
+  .stage-line{
+    position:absolute; top:16px; left:50%; width:100%; height:2px; background:var(--border); z-index:1;
+  }
+  .stage.done .stage-line, .stage.current .stage-line{ background:var(--pine); }
+  .stage:last-child .stage-line{ display:none; }
+  .stage-label{ font-size:0.7rem; font-weight:600; color:var(--text-muted); margin-top:8px; text-align:center; }
+  .stage.done .stage-label, .stage.current .stage-label{ color:var(--text); }
+  .order-id-chip{
+    background:var(--gold-soft); color:var(--gold); padding:8px 18px;
+    border-radius:20px; font-weight:700; font-size:0.85rem; margin-bottom:12px;
+  }
+  .back-link{
+    margin-top:24px; text-decoration:underline; font-size:0.85rem;
+    background:none; border:none; color:var(--text); cursor:pointer; padding:10px;
+  }
+
+  /* ---------- Owner dashboard ---------- */
+  .dash{ max-width:900px; margin:0 auto; padding:20px 16px 80px; }
+  .dash h2{ font-family:var(--font-display); font-size:1.8rem; font-weight:400; margin-bottom:4px; }
+  .dash .sub{ color:var(--text-muted); font-size:0.83rem; margin-bottom:18px; }
+  .dash-tabs{ display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+  .dash-tabs button{
+    background:var(--surface); border:1px solid var(--border); padding:9px 16px; min-height:38px;
+    border-radius:20px; font-weight:600; font-size:0.8rem; cursor:pointer;
+  }
+  .dash-tabs button.active{ background:var(--pine); color:#fff; border-color:var(--pine); }
+
+  .order-card{
+    background:var(--surface); border:1px solid var(--border-soft); border-radius:14px;
+    padding:14px 16px; margin-bottom:12px; box-shadow:var(--shadow-sm); transition:box-shadow .3s ease;
+  }
+  .order-card.flash{ box-shadow:0 0 0 3px var(--gold); }
+  .order-card.served{ opacity:0.55; }
+  .order-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; flex-wrap:wrap; gap:4px; }
+  .order-top .tbl{ font-weight:800; font-size:1.02rem; }
+  .order-top .time{ font-size:0.74rem; color:var(--text-muted); }
+  .order-items{ font-size:0.84rem; color:var(--text); margin-bottom:10px; line-height:1.5; }
+  .status-badge{
+    display:inline-block; font-size:0.7rem; font-weight:700; padding:4px 10px; border-radius:12px; text-transform:uppercase; letter-spacing:0.3px;
+  }
+  .status-received{ background:#F0EDE3; color:#8A8578; }
+  .status-preparing{ background:var(--gold-soft); color:var(--gold); }
+  .status-ready{ background:var(--pine-soft); color:var(--pine); }
+  .status-served{ background:var(--border-soft); color:var(--text-muted); }
+  .order-bottom{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .order-total{ font-weight:700; }
+  .advance-btn{
+    background:var(--pine); color:#fff; border:none; padding:9px 16px; min-height:36px;
+    border-radius:16px; font-size:0.78rem; font-weight:600; cursor:pointer;
+  }
+  .empty-state{ text-align:center; padding:50px 20px; color:var(--text-muted); font-size:0.9rem; }
+
+  .menu-editor-row{
+    display:flex; flex-direction:column; gap:8px;
+    background:var(--surface); border:1px solid var(--border);
+    padding:12px 14px; border-radius:10px; margin-bottom:8px;
+  }
+  .menu-editor-line{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .menu-editor-line input[type=text]{ flex:1 1 140px; }
+  .menu-editor-line input[type=number]{ flex:0 1 90px; }
+  .menu-editor-row input{ border:1px solid var(--border); padding:9px 10px; border-radius:6px; }
+  .menu-editor-line label{ display:flex; align-items:center; gap:6px; font-size:0.78rem; flex:0 0 auto; }
+  .menu-editor-row input[type=checkbox]{ width:18px; height:18px; }
+  .desc-input{
+    width:100%; border:1px solid var(--border); border-radius:6px; padding:8px 10px;
+    font-size:0.82rem; resize:vertical; color:var(--text);
+  }
+  .delete-btn{
+    background:transparent; border:1px solid var(--border); color:var(--danger);
+    width:36px; height:36px; border-radius:8px; font-size:1rem; cursor:pointer; flex:0 0 auto;
+  }
+  .cat-heading-row{ display:flex; justify-content:space-between; align-items:center; margin:20px 0 10px; flex-wrap:wrap; gap:8px; }
+  .cat-heading{ font-weight:700; font-size:1rem; margin:0; }
+  .rename-cat-btn{
+    background:transparent; border:1px solid var(--border); color:var(--text-muted);
+    padding:5px 12px; border-radius:14px; font-size:0.72rem; cursor:pointer;
+  }
+  .add-dish-card{ background:var(--surface); border:1px solid var(--border-soft); border-radius:14px; padding:16px; margin-bottom:22px; box-shadow:var(--shadow-sm); }
+  .add-dish-title{ font-weight:700; font-size:1rem; margin-bottom:12px; }
+  .add-dish-grid{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
+  .add-dish-grid input[type=text], .add-dish-grid input[type=number]{
+    flex:1 1 140px; border:1px solid var(--border); background:var(--bg); padding:10px 12px; border-radius:6px;
+  }
+  .add-dish-grid label{
+    display:flex; align-items:center; gap:6px; font-size:0.82rem; flex:0 0 auto;
+    background:var(--bg); padding:9px 14px; border-radius:6px; border:1px solid var(--border);
+  }
+  #newDishDesc{
+    width:100%; border:1px solid var(--border); border-radius:6px; padding:9px 12px;
+    font-size:0.85rem; resize:vertical; margin-bottom:10px; background:var(--bg);
+  }
+  .add-dish-btn{
+    background:var(--pine); color:#fff; border:none; padding:11px 20px; min-height:40px;
+    border-radius:20px; font-weight:700; font-size:0.85rem; cursor:pointer;
+  }
+  .seed-btn{
+    background:var(--gold); color:var(--pine-dark); border:none; padding:12px 18px;
+    border-radius:20px; font-weight:700; font-size:0.85rem; cursor:pointer;
+  }
+  .save-note{ font-size:0.78rem; color:var(--pine); margin-top:6px; min-height:16px; font-weight:600; }
+  .sync-note{
+    background:var(--pine-soft); border-radius:10px; padding:12px 14px; font-size:0.78rem;
+    color:var(--text); margin-bottom:18px; line-height:1.5; border-left:3px solid var(--pine);
+  }
+
+  /* ---------- Table selection (single-QR flow) ---------- */
+  .table-select-screen{ display:flex; justify-content:center; align-items:center; min-height:80vh; padding:20px; }
+  .table-select-card{
+    background:var(--surface); border:1px solid var(--border-soft); border-radius:16px;
+    padding:36px 28px 32px; max-width:340px; width:100%; text-align:center;
+    box-shadow:var(--shadow-lg); border-top:4px solid var(--gold);
+  }
+  .table-select-icon{ font-size:1.8rem; margin-bottom:10px; }
+  .table-select-card h2{ font-family:var(--font-display); font-size:1.6rem; font-weight:400; margin-bottom:6px; }
+  .table-select-card .sub{ color:var(--text-muted); font-size:0.82rem; margin-bottom:18px; line-height:1.5; }
+  .table-select-card input{
+    width:100%; padding:14px; border:1px solid var(--border); border-radius:10px; margin-bottom:12px;
+    text-align:center; font-size:1.1rem; font-weight:700;
+  }
+  .table-select-error{ color:var(--danger); font-size:0.78rem; min-height:18px; margin-top:8px; font-weight:600; }
+
+  /* ---------- Login gate ---------- */
+  .login-gate{ display:flex; justify-content:center; align-items:center; min-height:70vh; padding:20px; }
+  .login-card{
+    background:var(--surface); border:1px solid var(--border-soft); border-radius:16px;
+    padding:36px 28px 32px; max-width:340px; width:100%; text-align:center;
+    box-shadow:var(--shadow-lg); border-top:4px solid var(--pine);
+  }
+  .login-icon{ font-size:1.7rem; margin-bottom:10px; }
+  .login-card h2{ font-family:var(--font-display); font-size:1.7rem; font-weight:400; }
+  .login-card input{ width:100%; padding:12px 14px; border:1px solid var(--border); border-radius:10px; margin-bottom:10px; }
+  .login-btn{
+    width:100%; background:var(--pine); color:#fff; border:none; padding:13px 14px; min-height:46px;
+    border-radius:10px; font-weight:700; font-size:0.9rem; cursor:pointer; margin-top:4px;
+  }
+  .login-error{ color:var(--danger); font-size:0.78rem; min-height:18px; margin-top:10px; font-weight:600; }
+  .login-hint{ font-size:0.72rem; color:var(--text-muted); margin-top:14px; line-height:1.5; }
+  .logout-btn{
+    background:transparent; border:1px solid var(--border); color:var(--text); padding:9px 14px;
+    min-height:38px; border-radius:16px; font-size:0.78rem; font-weight:600; cursor:pointer;
+  }
+  .conn-banner{ text-align:center; font-size:0.75rem; color:var(--text-muted); padding:8px; background:var(--border-soft); }
+
+  @media (max-width:380px){ .brand{ font-size:0.95rem; } .menu-header h1{ font-size:1.5rem; } }
+</style>
+</head>
+<body>
+
+<div id="connBanner" class="conn-banner" style="display:none;"></div>
+
+<div class="topbar">
+  <div class="brand">Malgudi Tiffins <small>Scan · Order · Enjoy</small></div>
+  <div class="view-toggle">
+    <button id="btnCustomer" class="active" onclick="setView('customer')">Customer</button>
+    <button id="btnOwner" onclick="setView('owner')">Owner</button>
+  </div>
+</div>
+
+<div id="toastBanner" class="toast-banner"></div>
+
+<!-- ============= CUSTOMER VIEW ============= -->
+<div id="customerView">
+
+  <!-- Table selection: shown only when the QR/link doesn't already specify a table -->
+  <div id="tableSelectScreen" class="table-select-screen" style="display:none;">
+    <div class="table-select-card">
+      <div class="table-select-icon">🍽️</div>
+      <h2>Which table are you at?</h2>
+      <p class="sub">Enter the number printed on your table so the kitchen knows where to send your order.</p>
+      <input type="text" inputmode="numeric" id="tableInput" placeholder="e.g. 4" onkeydown="if(event.key==='Enter') confirmTable()">
+      <button class="login-btn" onclick="confirmTable()">Continue to menu</button>
+      <p class="table-select-error" id="tableSelectError"></p>
+    </div>
+  </div>
+
+  <div id="menuScreen" style="display:none;">
+    <div class="menu-header">
+      <div class="table-tag" id="tableTag">Table 1</div>
+      <h1>Today's Menu</h1>
+      <p>Tap + to add a dish, then place your order</p>
+    </div>
+
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Search dishes..." oninput="handleSearch(this.value)">
+      <label class="veg-toggle"><input type="checkbox" id="vegToggle" onchange="handleVegToggle(this.checked)"> Veg only</label>
+    </div>
+
+    <div id="tabsWrap">
+      <div class="cat-tabs" id="catTabs"></div>
+    </div>
+    <div id="searchLabel" class="search-results-label" style="display:none;"></div>
+
+    <div class="menu-list" id="menuList"></div>
+  </div>
+
+  <!-- Live order status tracker -->
+  <div class="tracker-screen" id="trackerScreen">
+    <div class="order-id-chip" id="orderIdChip"></div>
+    <h2 id="trackerHeading">Order placed!</h2>
+    <p class="sub" id="trackerSub">We'll update this in real time as your order moves along.</p>
+
+    <div class="stage-track" id="stageTrack"></div>
+
+    <button class="back-link" onclick="backToMenu()">Place another order</button>
+  </div>
+
+  <div class="cart-bar" id="cartBar">
+    <div class="info" id="cartInfo">0 items · ₹0</div>
+    <button onclick="placeOrder()">Place order</button>
+  </div>
+</div>
+
+<!-- ============= OWNER VIEW ============= -->
+<div id="ownerView" class="dash" style="display:none;">
+
+  <div id="loginGate" class="login-gate">
+    <div class="login-card">
+      <div class="login-icon">🔒</div>
+      <h2>Owner Login</h2>
+      <p class="sub" style="margin-bottom:16px;">This area is for restaurant staff only</p>
+      <input type="email" id="loginEmail" placeholder="Email" autocomplete="username">
+      <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter') attemptLogin()">
+      <button class="login-btn" onclick="attemptLogin()">Log in</button>
+      <p class="login-error" id="loginError"></p>
+      <p class="login-hint">Owner accounts are created in the Firebase console under Authentication → Users.</p>
+    </div>
+  </div>
+
+  <div id="ownerDashboard" style="display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+      <div>
+        <h2>Owner Dashboard</h2>
+        <div class="sub" id="loggedInAs">Manage incoming orders and today's menu</div>
+      </div>
+      <button class="logout-btn" onclick="logoutOwner()">Log out</button>
+    </div>
+
+    <div class="sync-note">
+      <strong>Live sync active:</strong> new orders trigger a sound alert and highlight here instantly, on any device viewing this dashboard.
+    </div>
+
+    <div class="dash-tabs">
+      <button id="tabOrders" class="active" onclick="setOwnerTab('orders')">Incoming Orders</button>
+      <button id="tabMenu" onclick="setOwnerTab('menu')">Manage Menu</button>
+    </div>
+
+    <div id="ordersPanel"></div>
+    <div id="menuPanel" style="display:none;"></div>
+  </div>
+</div>
+
+<script>
+/* ===========================================================
+   FIREBASE CONFIG — already connected to your project
+   =========================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyCmMDfO4gO4RuU3QskuFUhhz5ypb0Bbt8U",
+  authDomain: "sample-7e886.firebaseapp.com",
+  projectId: "sample-7e886",
+  storageBucket: "sample-7e886.firebasestorage.app",
+  messagingSenderId: "444920679077",
+  appId: "1:444920679077:web:b9319ed7e49c6aa4485b4c",
+  measurementId: "G-EFHXE9JEF5"
+};
+
+/* ===========================================================
+   FIRESTORE SECURITY RULES (paste into Firebase console → Rules)
+
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /menu/{itemId} {
+         allow read: if true;
+         allow write: if request.auth != null;
+       }
+       match /orders/{orderId} {
+         allow read: if request.auth != null;
+         allow create: if true;
+         allow update, delete: if request.auth != null;
+       }
+     }
+   }
+   =========================================================== */
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+const DEFAULT_MENU = [
+  {cat:'Tiffins', name:'Masala Dosa', desc:'Crisp rice crepe, spiced potato filling', price:80, veg:true, available:true},
+  {cat:'Tiffins', name:'Idli Vada Combo', desc:'Steamed rice cakes with lentil fritters', price:60, veg:true, available:true},
+  {cat:'Tiffins', name:'Rava Uttapam', desc:'Semolina pancake with onion & chilli', price:70, veg:true, available:true},
+  {cat:'Mains', name:'Ven Pongal', desc:'Rice & lentil khichdi, tempered with pepper', price:75, veg:true, available:true},
+  {cat:'Mains', name:'Chettinad Egg Curry', desc:'Boiled eggs in spiced onion-tomato gravy', price:110, veg:false, available:true},
+  {cat:'Mains', name:'Chicken Chukka', desc:'Dry-roasted chicken, curry leaves & spices', price:150, veg:false, available:false},
+  {cat:'Beverages', name:'Filter Coffee', desc:'Classic South Indian decoction coffee', price:30, veg:true, available:true},
+  {cat:'Beverages', name:'Buttermilk', desc:'Spiced yogurt drink with curry leaves', price:25, veg:true, available:true},
+  {cat:'Desserts', name:'Rava Kesari', desc:'Semolina sweet with ghee, cashew & saffron', price:50, veg:true, available:true},
+];
+
+const STAGES = ['received', 'preparing', 'ready', 'served'];
+const STAGE_LABELS = { received:'Received', preparing:'Preparing', ready:'Ready', served:'Served' };
+const STAGE_MESSAGES = {
+  received:  { heading:'Order received!', sub:'The kitchen has your order and will start preparing shortly.' },
+  preparing: { heading:'Being prepared', sub:'Your dishes are being cooked right now.' },
+  ready:     { heading:'Ready to serve', sub:'Your order is ready — it will be brought to your table shortly.' },
+  served:    { heading:'Enjoy your meal!', sub:'Your order has been served. Bon appétit!' }
+};
+
+/* ---------------------------------------------------------
+   STATE
+--------------------------------------------------------- */
+let menu = [];
+let orders = [];
+let cart = {};
+let activeCat = null;
+let searchQuery = '';
+let vegOnly = false;
+let trackerUnsub = null;
+let ordersFirstLoad = true;
+
+const params = new URLSearchParams(window.location.search);
+
+/* ---------------------------------------------------------
+   TABLE IDENTIFICATION
+   Two supported setups:
+   1. Per-table QR codes: URL already contains ?table=5 — used
+      immediately, no prompt shown.
+   2. One shared QR code for the whole restaurant: no ?table=
+      in the URL, so we ask the customer once. Their answer is
+      kept in sessionStorage so they aren't asked again if they
+      refresh or browse back during the same visit.
+--------------------------------------------------------- */
+let tableNo = params.get('table') || sessionStorage.getItem('mt_table');
+
+function initTableFlow(){
+  if(tableNo){
+    document.getElementById('tableTag').textContent = 'Table ' + tableNo;
+    document.getElementById('tableSelectScreen').style.display = 'none';
+    document.getElementById('menuScreen').style.display = 'block';
+  } else {
+    document.getElementById('tableSelectScreen').style.display = 'flex';
+    document.getElementById('menuScreen').style.display = 'none';
+  }
+}
+
+function confirmTable(){
+  const input = document.getElementById('tableInput');
+  const error = document.getElementById('tableSelectError');
+  const val = input.value.trim();
+  if(!val){
+    error.textContent = 'Please enter your table number.';
+    return;
+  }
+  tableNo = val;
+  sessionStorage.setItem('mt_table', val);
+  error.textContent = '';
+  initTableFlow();
+}
+
+initTableFlow();
+
+/* ---------------------------------------------------------
+   FIRESTORE: LIVE MENU LISTENER
+--------------------------------------------------------- */
+db.collection('menu').onSnapshot((snapshot) => {
+  menu = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  renderCategoryTabs();
+  renderMenuList();
+  if(isOwnerAuthed()) renderMenuEditor();
+}, (err) => {
+  console.error('Menu listener error:', err);
+  const banner = document.getElementById('connBanner');
+  banner.style.display = 'block';
+  banner.textContent = 'Could not load menu — check your Firebase config and Firestore rules.';
+});
+
+/* ---------------------------------------------------------
+   CUSTOMER: SEARCH + FILTER
+--------------------------------------------------------- */
+function handleSearch(value){
+  searchQuery = value.trim().toLowerCase();
+  renderMenuList();
+  document.getElementById('tabsWrap').style.display = searchQuery ? 'none' : 'block';
+  const label = document.getElementById('searchLabel');
+  if(searchQuery){
+    label.style.display = 'block';
+  } else {
+    label.style.display = 'none';
+  }
+}
+function handleVegToggle(checked){
+  vegOnly = checked;
+  renderMenuList();
+}
+function getFilteredItems(){
+  let items;
+  if(searchQuery){
+    items = menu.filter(i =>
+      i.name.toLowerCase().includes(searchQuery) ||
+      (i.desc || '').toLowerCase().includes(searchQuery)
+    );
+  } else {
+    items = menu.filter(i => i.cat === activeCat);
+  }
+  if(vegOnly) items = items.filter(i => i.veg);
+  return items;
+}
+
+/* ---------------------------------------------------------
+   CUSTOMER: MENU RENDERING
+--------------------------------------------------------- */
+function renderCategoryTabs(){
+  const cats = [...new Set(menu.map(i=>i.cat))];
+  if(!activeCat || !cats.includes(activeCat)) activeCat = cats[0];
+  const wrap = document.getElementById('catTabs');
+  wrap.innerHTML = cats.map(c =>
+    `<button class="${c===activeCat?'active':''}" onclick="selectCat('${c}')">${c}</button>`
+  ).join('');
+}
+function selectCat(c){
+  activeCat = c;
+  searchQuery = '';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchLabel').style.display = 'none';
+  document.getElementById('tabsWrap').style.display = 'block';
+  renderCategoryTabs();
+  renderMenuList();
+}
+
+function renderMenuList(){
+  const list = document.getElementById('menuList');
+  const label = document.getElementById('searchLabel');
+  if(menu.length === 0){
+    list.innerHTML = `<div class="no-results">Menu is being set up. Please check back shortly.</div>`;
+    return;
+  }
+  const items = getFilteredItems();
+  if(searchQuery){
+    label.textContent = `${items.length} result${items.length!==1?'s':''} for "${searchQuery}"`;
+  }
+  if(items.length === 0){
+    list.innerHTML = `<div class="no-results">No dishes match your search.</div>`;
+    return;
+  }
+  list.innerHTML = items.map(item => {
+    const qty = cart[item.id] || 0;
+    const vegClass = item.veg ? 'veg-dot' : 'veg-dot non';
+    if(!item.available){
+      return `
+        <div class="item-card unavailable ${!item.veg ? 'non-veg' : ''}">
+          <div class="item-info">
+            <h3><span class="${vegClass}"></span>${item.name}</h3>
+            <p class="desc">${item.desc || ''}</p>
+            <p class="sold-out-tag">Sold out today</p>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="item-card ${!item.veg ? 'non-veg' : ''}">
+        <div class="item-info">
+          <h3><span class="${vegClass}"></span>${item.name}</h3>
+          <p class="desc">${item.desc || ''}</p>
+          <p class="price">₹${item.price}</p>
+        </div>
+        <div class="item-action">
+          ${qty === 0
+            ? `<button class="add-btn" onclick="changeQty('${item.id}',1)">Add</button>`
+            : `<div class="stepper">
+                 <button onclick="changeQty('${item.id}',-1)">−</button>
+                 <span>${qty}</span>
+                 <button onclick="changeQty('${item.id}',1)">+</button>
+               </div>`
+          }
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function changeQty(id, delta){
+  const newQty = (cart[id] || 0) + delta;
+  if(newQty <= 0){ delete cart[id]; } else { cart[id] = newQty; }
+  renderMenuList();
+  renderCartBar();
+}
+
+function renderCartBar(){
+  const bar = document.getElementById('cartBar');
+  const ids = Object.keys(cart);
+  if(ids.length === 0){ bar.classList.remove('show'); return; }
+  let count = 0, total = 0;
+  ids.forEach(id=>{
+    const item = menu.find(m=>m.id===id);
+    if(!item) return;
+    count += cart[id];
+    total += cart[id] * item.price;
+  });
+  document.getElementById('cartInfo').textContent = `${count} item${count>1?'s':''} · ₹${total}`;
+  bar.classList.add('show');
+}
+
+/* ---------------------------------------------------------
+   PLACE ORDER
+--------------------------------------------------------- */
+function placeOrder(){
+  const ids = Object.keys(cart);
+  if(ids.length===0) return;
+  const items = ids.map(id=>{
+    const item = menu.find(m=>m.id===id);
+    return {name:item.name, qty:cart[id], price:item.price};
+  });
+  const total = items.reduce((s,i)=>s + i.qty*i.price, 0);
+
+  db.collection('orders').add({
+    table: tableNo,
+    items,
+    total,
+    time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    status: 'received'
+  }).then((docRef) => {
+    cart = {};
+    renderMenuList();
+    renderCartBar();
+    document.getElementById('menuScreen').style.display = 'none';
+    document.getElementById('trackerScreen').classList.add('show');
+    document.getElementById('orderIdChip').textContent = 'Order #' + docRef.id.slice(-6).toUpperCase();
+    subscribeToOrderTracker(docRef.id);
+  }).catch((err) => {
+    alert('Could not place order — please check your connection and try again.');
+    console.error(err);
+  });
+}
+
+function subscribeToOrderTracker(orderId){
+  if(trackerUnsub) trackerUnsub();
+  trackerUnsub = db.collection('orders').doc(orderId).onSnapshot((doc) => {
+    if(!doc.exists) return;
+    renderTracker(doc.data().status || 'received');
+  });
+}
+
+function renderTracker(status){
+  const idx = STAGES.indexOf(status);
+  document.getElementById('trackerHeading').textContent = STAGE_MESSAGES[status].heading;
+  document.getElementById('trackerSub').textContent = STAGE_MESSAGES[status].sub;
+  document.getElementById('stageTrack').innerHTML = STAGES.map((s, i) => {
+    let cls = '';
+    if(i < idx) cls = 'done';
+    else if(i === idx) cls = 'current';
+    return `
+      <div class="stage ${cls}">
+        <div class="stage-line"></div>
+        <div class="stage-dot">${i < idx ? '✓' : i+1}</div>
+        <div class="stage-label">${STAGE_LABELS[s]}</div>
+      </div>`;
+  }).join('');
+}
+
+function backToMenu(){
+  if(trackerUnsub){ trackerUnsub(); trackerUnsub = null; }
+  document.getElementById('trackerScreen').classList.remove('show');
+  document.getElementById('menuScreen').style.display = 'block';
+}
+
+/* ---------------------------------------------------------
+   VIEW SWITCHING
+--------------------------------------------------------- */
+function setView(view){
+  document.getElementById('customerView').style.display = view==='customer' ? 'block' : 'none';
+  document.getElementById('ownerView').style.display = view==='owner' ? 'block' : 'none';
+  document.getElementById('btnCustomer').classList.toggle('active', view==='customer');
+  document.getElementById('btnOwner').classList.toggle('active', view==='owner');
+  if(view==='owner'){ showOwnerScreen(); }
+}
+
+/* ---------------------------------------------------------
+   OWNER LOGIN
+--------------------------------------------------------- */
+let currentUser = null;
+auth.onAuthStateChanged((user) => {
+  currentUser = user;
+  showOwnerScreen();
+  if(user) subscribeOrders();
+});
+
+function isOwnerAuthed(){ return !!currentUser; }
+
+function attemptLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const error = document.getElementById('loginError');
+  error.textContent = '';
+  auth.signInWithEmailAndPassword(email, password)
+    .then(() => { document.getElementById('loginPassword').value = ''; })
+    .catch((err) => {
+      error.textContent = 'Login failed — check your email and password.';
+      console.error(err.code);
+    });
+}
+function logoutOwner(){ auth.signOut().then(() => setView('customer')); }
+
+function showOwnerScreen(){
+  const authed = isOwnerAuthed();
+  document.getElementById('loginGate').style.display = authed ? 'none' : 'flex';
+  document.getElementById('ownerDashboard').style.display = authed ? 'block' : 'none';
+  if(authed){
+    document.getElementById('loggedInAs').textContent = 'Logged in as ' + currentUser.email;
+    renderOrders();
+    renderMenuEditor();
+  }
+}
+
+/* ---------------------------------------------------------
+   FIRESTORE: LIVE ORDERS LISTENER + SOUND ALERT
+   docChanges() tells us exactly what changed since last time —
+   we use it to detect brand-new orders and trigger an alert,
+   while ignoring the initial batch of already-existing orders.
+--------------------------------------------------------- */
+let ordersUnsub = null;
+function subscribeOrders(){
+  if(ordersUnsub) return;
+  ordersUnsub = db.collection('orders').orderBy('createdAt', 'desc')
+    .onSnapshot((snapshot) => {
+      orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      if(!ordersFirstLoad){
+        snapshot.docChanges().forEach(change => {
+          if(change.type === 'added'){
+            const o = { id: change.doc.id, ...change.doc.data() };
+            playAlertSound();
+            showToast(`🔔 New order — Table ${o.table}`);
+          }
+        });
+      }
+      ordersFirstLoad = false;
+
+      if(isOwnerAuthed()) renderOrders();
+    }, (err) => console.error('Orders listener error:', err));
+}
+
+function playAlertSound(){
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1108].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + i*0.15 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i*0.15 + 0.18);
+      osc.start(ctx.currentTime + i*0.15);
+      osc.stop(ctx.currentTime + i*0.15 + 0.2);
+    });
+  }catch(e){ console.error('Audio alert failed:', e); }
+}
+
+function showToast(message){
+  const toast = document.getElementById('toastBanner');
+  toast.textContent = message;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 4000);
+}
+
+function setOwnerTab(tab){
+  document.getElementById('tabOrders').classList.toggle('active', tab==='orders');
+  document.getElementById('tabMenu').classList.toggle('active', tab==='menu');
+  document.getElementById('ordersPanel').style.display = tab==='orders' ? 'block' : 'none';
+  document.getElementById('menuPanel').style.display = tab==='menu' ? 'block' : 'none';
+}
+
+function renderOrders(){
+  const panel = document.getElementById('ordersPanel');
+  if(orders.length === 0){
+    panel.innerHTML = `<div class="empty-state">No orders yet. Place one from the Customer view to see it appear here instantly.</div>`;
+    return;
+  }
+  panel.innerHTML = orders.map(o => {
+    const status = o.status || 'received';
+    const isServed = status === 'served';
+    const nextIdx = STAGES.indexOf(status) + 1;
+    const nextLabel = nextIdx < STAGES.length ? STAGE_LABELS[STAGES[nextIdx]] : null;
+    return `
+    <div class="order-card ${isServed ? 'served' : ''}" id="order-${o.id}">
+      <div class="order-top">
+        <span class="tbl">Table ${o.table}</span>
+        <span class="time">${o.time || ''}</span>
+      </div>
+      <div class="order-items">${o.items.map(i=>`${i.qty}× ${i.name}`).join(', ')}</div>
+      <span class="status-badge status-${status}">${STAGE_LABELS[status]}</span>
+      <div class="order-bottom">
+        <span class="order-total">₹${o.total}</span>
+        ${nextLabel
+          ? `<button class="advance-btn" onclick="advanceStatus('${o.id}','${status}')">Mark as ${nextLabel}</button>`
+          : `<span style="font-size:0.78rem;color:var(--success);font-weight:700;">✓ Completed</span>`
+        }
+      </div>
+    </div>
+  `}).join('');
+}
+
+function advanceStatus(id, currentStatus){
+  const idx = STAGES.indexOf(currentStatus);
+  if(idx < 0 || idx === STAGES.length - 1) return;
+  db.collection('orders').doc(id).update({ status: STAGES[idx+1] })
+    .catch(err => console.error(err));
+}
+
+/* ---------------------------------------------------------
+   OWNER: MENU EDITOR
+--------------------------------------------------------- */
+function renderMenuEditor(){
+  const panel = document.getElementById('menuPanel');
+  const cats = [...new Set(menu.map(i=>i.cat))];
+
+  const addForm = `
+    <div class="add-dish-card">
+      <h3 class="add-dish-title">Add a new dish</h3>
+      <div class="add-dish-grid">
+        <input type="text" id="newDishName" placeholder="Dish name">
+        <input type="text" id="newDishCat" list="catOptions" placeholder="Category (existing or new)">
+        <datalist id="catOptions">${cats.map(c=>`<option value="${c}">`).join('')}</datalist>
+        <input type="number" id="newDishPrice" placeholder="Price (₹)">
+        <label><input type="checkbox" id="newDishVeg" checked> Veg</label>
+      </div>
+      <textarea id="newDishDesc" placeholder="Short description" rows="2"></textarea>
+      <button class="add-dish-btn" onclick="addNewDish()">Add dish</button>
+      <div class="save-note" id="addDishNote"></div>
+    </div>
+  `;
+
+  if(menu.length === 0){
+    panel.innerHTML = addForm + `
+      <div class="empty-state">No menu items yet — add one above, or
+      <button class="seed-btn" onclick="seedMenu()">load a starter menu</button></div>`;
+    return;
+  }
+
+  const itemsHtml = cats.map(cat => `
+    <div class="cat-heading-row">
+      <div class="cat-heading">${cat}</div>
+      <button class="rename-cat-btn" onclick="renameCategory('${cat}')">Rename category</button>
+    </div>
+    ${menu.filter(i=>i.cat===cat).map(item => `
+      <div class="menu-editor-row">
+        <div class="menu-editor-line">
+          <input type="text" value="${item.name}" onchange="updateItem('${item.id}','name',this.value)">
+          <input type="number" value="${item.price}" onchange="updateItem('${item.id}','price',this.value)">
+          <label><input type="checkbox" ${item.available?'checked':''} onchange="updateItem('${item.id}','available',this.checked)"> In stock</label>
+          <button class="delete-btn" onclick="deleteItem('${item.id}','${item.name.replace(/'/g,"\\'")}')" title="Delete dish">🗑</button>
+        </div>
+        <textarea class="desc-input" rows="2" placeholder="Description"
+          onchange="updateItem('${item.id}','desc',this.value)">${item.desc || ''}</textarea>
+      </div>
+    `).join('')}
+  `).join('');
+
+  panel.innerHTML = addForm + itemsHtml + `<div class="save-note" id="saveNote"></div>`;
+}
+
+function addNewDish(){
+  const name = document.getElementById('newDishName').value.trim();
+  const cat = document.getElementById('newDishCat').value.trim();
+  const price = Number(document.getElementById('newDishPrice').value);
+  const veg = document.getElementById('newDishVeg').checked;
+  const desc = document.getElementById('newDishDesc').value.trim();
+  const note = document.getElementById('addDishNote');
+
+  if(!name || !cat || !price){
+    note.style.color = 'var(--danger)';
+    note.textContent = 'Please fill in name, category, and price.';
+    return;
+  }
+  db.collection('menu').add({ name, cat, price, veg, desc, available: true })
+    .then(() => {
+      ['newDishName','newDishCat','newDishPrice','newDishDesc'].forEach(id => document.getElementById(id).value = '');
+      note.style.color = 'var(--success)';
+      note.textContent = 'Dish added ✓';
+      setTimeout(()=>{ if(note) note.textContent=''; }, 1500);
+    })
+    .catch(err => {
+      note.style.color = 'var(--danger)';
+      note.textContent = 'Could not add dish — try again.';
+      console.error(err);
+    });
+}
+
+function deleteItem(id, name){
+  if(!confirm(`Remove "${name}" from the menu? This can't be undone.`)) return;
+  db.collection('menu').doc(id).delete().catch(err => console.error(err));
+}
+
+function renameCategory(oldCat){
+  const newCat = prompt(`Rename category "${oldCat}" to:`, oldCat);
+  if(!newCat || newCat.trim() === '' || newCat.trim() === oldCat) return;
+  const itemsInCat = menu.filter(i => i.cat === oldCat);
+  const batch = db.batch();
+  itemsInCat.forEach(item => batch.update(db.collection('menu').doc(item.id), { cat: newCat.trim() }));
+  batch.commit().catch(err => console.error(err));
+}
+
+function updateItem(id, field, value){
+  if(field==='price') value = Number(value);
+  db.collection('menu').doc(id).update({ [field]: value })
+    .then(() => {
+      const note = document.getElementById('saveNote');
+      if(note){ note.textContent = 'Saved ✓'; setTimeout(()=>{ if(note) note.textContent=''; }, 1200); }
+    })
+    .catch(err => console.error(err));
+}
+
+function seedMenu(){
+  const batch = db.batch();
+  DEFAULT_MENU.forEach(item => batch.set(db.collection('menu').doc(), item));
+  batch.commit().catch(err => console.error(err));
+}
+</script>
+
+</body>
+</html>
